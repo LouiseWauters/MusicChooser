@@ -15,21 +15,6 @@ def random_bpm(bpm_range):
     return np.random.randint(bpm_range[0], bpm_range[1])
 
 
-def pick_yes(state, song_bpm_range, heart_bpm_range):
-    new_heart_bpm = state['song_bpm'] + np.random.randint(-5, 6)
-    state['heart_bpm'] = min(heart_bpm_range[1], new_heart_bpm)
-    state['heart_bpm'] = max(heart_bpm_range[0], state['heart_bpm'])
-    state['song_bpm'] = random_bpm(song_bpm_range)
-
-
-def pick_no(state, song_bpm_range, heart_bpm_range):
-    state['song_bpm'] = random_bpm(song_bpm_range)
-
-
-def make_obs_space(song_bpm_range, heart_bpm_range):
-    return gym.spaces.MultiDiscrete([song_bpm_range[1] - song_bpm_range[0], heart_bpm_range[1] - heart_bpm_range[0]])
-
-
 def state_representation(state, previous_state=None):
     rep_str = f'song: {state[0]} BPM '
     if previous_state is not None:
@@ -46,24 +31,20 @@ def state_to_array(state):
     return np.array([state[observation] for observation in ['song_bpm', 'heart_bpm']])
 
 
-def make_state(song_bpm_range=(0, 300), heart_bpm_range=(0, 300)):
-    obs = make_obs_space(song_bpm_range, heart_bpm_range)
-    sample = obs.sample()
-    return {'song_bpm': sample[0] + song_bpm_range[0], 'heart_bpm': sample[1] + heart_bpm_range[0]}
-
-
 def distance(x, y):
     return abs(x - y)
 
 
 class MusicEnv(gym.Env):
-    def __init__(self, song_bpm_low=10, song_bpm_high=300, heart_bpm_low=30, heart_bpm_high=200, heart_bpm_goal=100, max_steps=1000):
-        self.actions = [pick_yes, pick_no]
+    def __init__(self, song_bpm_low=10, song_bpm_high=300, heart_bpm_low=30, heart_bpm_high=200, heart_bpm_goal=100,
+                 max_steps=1000):
+        self.actions = [self.pick_yes, self.pick_no]
         self.action_space = gym.spaces.Discrete(len(self.actions))
         self.song_bpm_range = (song_bpm_low, song_bpm_high)
         self.heart_bpm_range = (heart_bpm_low, heart_bpm_high)
         self.observations = ['song_bpm', 'heart_bpm']
-        self.observation_space = make_obs_space(self.song_bpm_range, self.heart_bpm_range)
+        self.observation_space = gym.spaces.MultiDiscrete([song_bpm_high - song_bpm_low,
+                                                           heart_bpm_high - heart_bpm_low])
         self.log = ''
         self.max_steps = max_steps
         self.steps_left = max_steps
@@ -77,8 +58,7 @@ class MusicEnv(gym.Env):
                          self.state['heart_bpm'] - self.heart_bpm_range[0]])
 
     def reset(self):
-        self.state = make_state(self.song_bpm_range, self.heart_bpm_range)
-        self.state['heart_bpm'] = 60
+        self.state = {'song_bpm': random_bpm(self.song_bpm_range), 'heart_bpm': 60}
         self.steps_left = self.max_steps
         self.log += state_representation(state_to_array(self.state))
         return self.observation()
@@ -87,7 +67,7 @@ class MusicEnv(gym.Env):
         old_state = self.observation()
 
         # Do selected action
-        self.actions[action](self.state, self.song_bpm_range, self.heart_bpm_range)
+        self.actions[action]()
         self.log += f'Chosen action: {self.actions[action].__name__}\n'
 
         new_state = self.observation()
@@ -126,6 +106,15 @@ class MusicEnv(gym.Env):
         print(self.log)
         self.log = ''
 
+    def pick_yes(self):
+        new_heart_bpm = self.state['song_bpm'] + np.random.randint(-5, 6)
+        self.state['heart_bpm'] = min(self.heart_bpm_range[1], new_heart_bpm)
+        self.state['heart_bpm'] = max(self.heart_bpm_range[0], self.state['heart_bpm'])
+        self.state['song_bpm'] = random_bpm(self.song_bpm_range)
+
+    def pick_no(self):
+        self.state['song_bpm'] = random_bpm(self.song_bpm_range)
+
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     def __init__(self, check_freq: int, log_dir: str, verbose: int = 1):
@@ -160,36 +149,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
 
 def main():
-    state = {
-        'song_bpm': 0,
-        'heart_bpm': 0
-    }
-
-    bpm_range = (65, 200)
-    state['song_bpm'] = random_bpm(bpm_range)
-    pick_yes(state, bpm_range, bpm_range)
-
-    obs = make_obs_space(bpm_range, bpm_range)
-    obs.sample()
-
-    state = make_state()
-    for _ in range(5):
-        old_state = state_to_array(state)
-        pick_yes(state, bpm_range, bpm_range)
-        print(state_representation(state_to_array(state), old_state))
-
     env = MusicEnv()
-
-    observation = env.reset()
-
-    while True:
-        observation, reward, done, _ = env.step(env.action_space.sample())
-        if observation[0] <= 0 or observation[1] <= 0:
-            print(observation)
-            print(env.state)
-            break
-
-    print(env.log[-200:])
 
     model = PPO("MlpPolicy", env, verbose=1)
 
