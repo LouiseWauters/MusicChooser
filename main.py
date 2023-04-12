@@ -51,7 +51,7 @@ class MusicEnv(gym.Env):
         self.state = None
         self.goal = heart_bpm_goal
         self.danger_low = 50
-        self.danger_high = 200
+        self.danger_high = 160
 
     def observation(self):
         return np.array([self.state['song_bpm'] - self.song_bpm_range[0],
@@ -60,7 +60,7 @@ class MusicEnv(gym.Env):
     def reset(self):
         self.state = {'song_bpm': random_bpm(self.song_bpm_range), 'heart_bpm': 60}
         self.steps_left = self.max_steps
-        self.log += state_representation(state_to_array(self.state))
+        self.log = state_representation(state_to_array(self.state))
         return self.observation()
 
     def step(self, action: int):
@@ -96,7 +96,6 @@ class MusicEnv(gym.Env):
 
         self.steps_left -= 1
         done = done or self.steps_left <= 0
-
         return self.observation(), reward, done, {}
 
     def close(self):
@@ -107,7 +106,8 @@ class MusicEnv(gym.Env):
         self.log = ''
 
     def pick_yes(self):
-        new_heart_bpm = self.state['song_bpm'] + np.random.randint(-5, 6)
+        new_heart_bpm = int(self.state['heart_bpm'] + 0.1 * (self.state['song_bpm'] - self.state['heart_bpm']))
+        new_heart_bpm += np.random.randint(-5, 6)
         self.state['heart_bpm'] = min(self.heart_bpm_range[1], new_heart_bpm)
         self.state['heart_bpm'] = max(self.heart_bpm_range[0], self.state['heart_bpm'])
         self.state['song_bpm'] = random_bpm(self.song_bpm_range)
@@ -149,22 +149,6 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
 
 def main():
-    env = MusicEnv()
-
-    model = PPO("MlpPolicy", env, verbose=1)
-
-    model.learn(total_timesteps=500, log_interval=10)
-
-    mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=5)
-    print(f'Reward per episode {mean_reward} +- {std_reward}')
-
-    obs = env.reset()
-    done = False
-    while not done:
-        action, _states = model.predict(obs, deterministic=True)
-        obs, reward, done, info = env.step(action)
-        env.render()
-
     # Create log dir
     log_dir = "tmp/"
     os.makedirs(log_dir, exist_ok=True)
@@ -183,6 +167,9 @@ def main():
 
     plot_results([log_dir], int(timesteps), results_plotter.X_EPISODES, "PPO Music Chooser")
     plt.show()
+
+    mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=5)
+    print(f'Reward per episode {mean_reward} +- {std_reward}')
 
     obs = env.reset()
     done = False
