@@ -58,7 +58,7 @@ def main():
     callback = SaveOnBestTrainingRewardCallback(check_freq=10, log_dir=log_dir)
 
     # Train the agent
-    timesteps = 1e5
+    timesteps = 100
     model.learn(total_timesteps=int(timesteps), callback=callback)
 
     plot_results([log_dir], int(timesteps), results_plotter.X_EPISODES, "PPO Music Chooser")
@@ -71,6 +71,18 @@ def main():
     done = False
     while not done:
         action, _states = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        env.render()
+
+
+def env_test():
+    env = MusicEnv()
+    env.reset()
+    env.render()
+    done = False
+    import random
+    while not done:
+        action = random.randint(0, 1)
         obs, reward, done, info = env.step(action)
         env.render()
 

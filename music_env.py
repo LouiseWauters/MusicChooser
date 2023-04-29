@@ -1,10 +1,14 @@
+import time
+
 import gym
 import numpy as np
+
+from music_player import MusicPlayer
 
 
 class MusicEnv(gym.Env):
     def __init__(self, song_bpm_low=10, song_bpm_high=300, heart_bpm_low=30, heart_bpm_high=200, heart_bpm_goal=100,
-                 max_steps=1000):
+                 max_steps=1000, songs_per_episode=10):
         self.actions = [self.pick_yes, self.pick_no]
         self.action_space = gym.spaces.Discrete(len(self.actions))
         self.song_bpm_range = (song_bpm_low, song_bpm_high)
@@ -15,18 +19,25 @@ class MusicEnv(gym.Env):
         self.log = ''
         self.max_steps = max_steps
         self.steps_left = max_steps
+        self.songs_per_episode = songs_per_episode
+        self.songs_left = songs_per_episode
         self.state = None
         self.goal = heart_bpm_goal
-        self.danger_low = 50
-        self.danger_high = 160
+        # self.danger_low = 50
+        # self.danger_high = 160
+        self.music_player = MusicPlayer()
+        self.next_song = None
+        self.music_start_time = None
 
     def observation(self):
         return np.array([self.state['song_bpm'] - self.song_bpm_range[0],
                          self.state['heart_bpm'] - self.heart_bpm_range[0]])
 
     def reset(self):
-        self.state = {'song_bpm': random_bpm(self.song_bpm_range), 'heart_bpm': 60}
+        self.state = {'song_bpm': 0, 'heart_bpm': 60}
+        self.set_next_song()
         self.steps_left = self.max_steps
+        self.songs_left = self.songs_per_episode
         self.log = state_representation(state_to_array(self.state))
         return self.observation()
 
@@ -41,28 +52,31 @@ class MusicEnv(gym.Env):
 
         transformed_goal = self.goal - self.heart_bpm_range[0]
 
-        reward = -1
+        reward = - distance(transformed_goal, new_state[1])
         done = False
 
-        if distance(transformed_goal, new_state[1]) > distance(transformed_goal, old_state[1]):
-            # Heart rate going in the wrong direction
-            reward = -10
-            self.log += 'Heart rate going in the wrong direction.\n'
-
-        if distance(transformed_goal, new_state[1]) < 10:
+        if distance(transformed_goal, new_state[1]) < 5:
             reward = 0
-            done = True
+            # done = True
             self.log += 'Goal rate reached.\n'
 
-        if self.state['heart_bpm'] >= self.danger_high or self.state['heart_bpm'] <= self.danger_low:
-            reward = -1000
-            self.state['heart_bpm'] = 60
-            self.log += 'User saw god for a second there.\n'
-
-        self.log += state_representation(state_to_array(self.state), (old_state[0] + self.song_bpm_range[0], old_state[1] + self.heart_bpm_range[0]))
+        if self.songs_left == 0:
+            done = True
+            self.log += 'End of episode.\n'
 
         self.steps_left -= 1
         done = done or self.steps_left <= 0
+
+        # Play song for a while
+        if self.actions[action].__name__ == 'pick_yes':
+            # TODO check when song is ready
+            while time.time() - self.music_start_time < 10:
+                time.sleep(0.1)
+            self.music_player.stop()
+
+        # TODO Calculate (average?) bpm and fill in state
+
+        self.log += state_representation(state_to_array(self.state), (old_state[0] + self.song_bpm_range[0], old_state[1] + self.heart_bpm_range[0]))
         return self.observation(), reward, done, {}
 
     def close(self):
@@ -73,14 +87,23 @@ class MusicEnv(gym.Env):
         self.log = ''
 
     def pick_yes(self):
+        self.songs_left -= 1
+        self.music_player.set_song(self.next_song)
+        self.music_player.play()
+        self.music_start_time = time.time()
+        self.set_next_song()
+
         new_heart_bpm = int(self.state['heart_bpm'] + 0.1 * (self.state['song_bpm'] - self.state['heart_bpm']))
         new_heart_bpm += np.random.randint(-5, 6)
         self.state['heart_bpm'] = min(self.heart_bpm_range[1], new_heart_bpm)
         self.state['heart_bpm'] = max(self.heart_bpm_range[0], self.state['heart_bpm'])
-        self.state['song_bpm'] = random_bpm(self.song_bpm_range)
 
     def pick_no(self):
-        self.state['song_bpm'] = random_bpm(self.song_bpm_range)
+        self.set_next_song()
+
+    def set_next_song(self):
+        self.next_song, song_bpm = self.music_player.get_random_song()
+        self.state['song_bpm'] = song_bpm
 
 
 def random_bpm(bpm_range):
