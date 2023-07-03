@@ -1,5 +1,6 @@
 import os
 import random
+import time
 
 import vlc
 
@@ -30,8 +31,19 @@ class MusicPlayer:
         song_bpm = get_bpm(random_song)
         return random_song, song_bpm
 
-    def play(self):
+    def play(self, max_seconds_to_play=None):
+        """Plays loaded mp3 for a certain amount of seconds.
+        If max_seconds_to_play is None, mp3 file plays completely."""
         self.player.play()
+        start_time = time.time()
+        time.sleep(1)
+        if max_seconds_to_play:
+            while time.time() - start_time < max_seconds_to_play and self.player.is_playing():
+                time.sleep(0.1)
+        else:
+            while self.player.is_playing():
+                time.sleep(0.1)
+        self.stop()
 
     def stop(self):
         self.player.stop()
