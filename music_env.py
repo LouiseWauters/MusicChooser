@@ -4,6 +4,15 @@ import gym
 import numpy as np
 
 from music_player import MusicPlayer
+from pulse_code import PulseSensorThread
+
+
+class MockSensor:
+    def __init__(self, max_bpm=300):
+        self.max_bpm = max_bpm
+
+    def get_bpm(self):
+        return min(np.random.normal(80, 10, 10)[0], self.max_bpm)
 
 
 class MusicEnv(gym.Env):
@@ -26,11 +35,24 @@ class MusicEnv(gym.Env):
         self.music_player = MusicPlayer()
         self.next_song = None
 
+        self.pulse_sensor_thread = PulseSensorThread('/dev/ttyACM0')
+        self.pulse_sensor_thread.daemon = True  # TODO find better way to stop thread?
+        self.pulse_sensor_thread.start()
+        if self.pulse_sensor_thread.ser is None:
+            # pulse sensor is not in use
+            self.pulse_sensor_thread = MockSensor(max_bpm=max_heart_bpm)
+            print("Pulse sensor is not connected. Mock data is used.")
+
+        print("Waiting for pulse sensor data...")
+        while self.pulse_sensor_thread.get_bpm() == 0:
+            time.sleep(1)
+            # TODO could be never ending
+
     def observation(self):
         return np.array([self.state[observation] for observation in self.observations])
 
     def reset(self):
-        self.state = {'song_bpm': 0, 'heart_bpm': 60}
+        self.state = {'song_bpm': None, 'heart_bpm': int(self.pulse_sensor_thread.get_bpm())}
         self.set_next_song()
         self.steps_left = self.max_steps
         self.songs_left = self.songs_per_episode
@@ -44,7 +66,15 @@ class MusicEnv(gym.Env):
         self.actions[action]()
         self.log += f'Chosen action: {self.actions[action].__name__}\n'
 
-        reward = - distance(self.goal, self.state['heart_bpm'])
+        # Get new heart BPM
+        heart_bpm = self.pulse_sensor_thread.get_bpm()
+        # Update state
+        self.state['heart_bpm'] = int(heart_bpm)
+
+        # Calculate reward
+        reward = - distance(self.goal, heart_bpm)
+        self.log += f'Reward: {reward}\n'
+
         done = False
 
         if distance(self.goal, self.state['heart_bpm']) < 5:
@@ -58,8 +88,6 @@ class MusicEnv(gym.Env):
 
         self.steps_left -= 1
         done = done or self.steps_left <= 0
-
-        # TODO Calculate (average?) bpm and fill in state
 
         self.log += self.state_representation(previous_state=previous_state)
         return self.observation(), reward, done, {}
@@ -76,12 +104,6 @@ class MusicEnv(gym.Env):
         self.music_player.set_song(self.next_song)
         self.music_player.play(max_seconds_to_play=10)
         self.set_next_song()
-
-        # TODO remove
-        new_heart_bpm = int(self.state['heart_bpm'] + 0.1 * (self.state['song_bpm'] - self.state['heart_bpm']))
-        new_heart_bpm += np.random.randint(-5, 6)
-        self.state['heart_bpm'] = min(self.max_heart_bpm, new_heart_bpm)
-        self.state['heart_bpm'] = max(0, self.state['heart_bpm'])
 
     def pick_no(self):
         self.set_next_song()
