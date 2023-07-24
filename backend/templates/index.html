@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Music Experiment</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Music Experiment</h1>
+    </header>
+    <section id="videoSection" hidden>
+        <div class="video-wrap">
+            <video id="video" playsinline autoplay></video>
+        </div>
+
+        <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+
+    </section>
+
+    <section id="mainSection">
+        <div id="wrapper">
+            <div class="simple-load-spinner"></div>
+        </div>
+    </section>
+    <button id="nextButton" type="button">Next</button>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
