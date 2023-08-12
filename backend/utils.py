@@ -1,3 +1,4 @@
+import csv
 import os
 import urllib.request
 from functools import wraps
@@ -25,18 +26,20 @@ def create_initial_agent_queue(queue):
         files = os.listdir(f'static/logs/{directory}')
         files.sort()
         for file in files:
-            if ".zip" in file:
+            if ".zip" in file and "backup" not in file:
                 queue.put(f'static/logs/{directory}/{file}')
 
 
 def inner_content(f):
     """Redirects to home page if request doesn't have right headers.
     Avoids user accessing inner content from browser."""
+
     @wraps(f)
     def decorated(*args, **kwargs):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return f(*args, **kwargs)
         return redirect('/')
+
     return decorated
 
 
@@ -47,6 +50,7 @@ def error_handler(f):
             return f(*args, **kwargs)
         except:
             return make_response('Something went wrong.', 400)
+
     return decorated
 
 
@@ -59,3 +63,23 @@ def show_images(queue):
         cv2.waitKey(100)
 
 
+# TODO Can be removed, for testing purposes only
+def read_experience_logs():
+    tmp_dirs = os.listdir('static/logs')
+    tmp_dirs.sort()  # Put the most recent models last in the queue (so they are first used)
+    for directory in tmp_dirs:
+        files = os.listdir(f'static/logs/{directory}')
+        for file in files:
+            if "experience_log" in file:
+                with open(f'static/logs/{directory}/{file}', "r") as csv_file:
+                    csv_reader = csv.DictReader(filter(lambda x: not x.startswith("#"), csv_file))
+                    for row in csv_reader:
+                        print("heart:", row["heart_bpm"])
+                        print("song:", row["song_file"])
+                        print("action:", row["a"])
+                        print("reward:", row["r"])
+                        print("next heart:", row["next_heart_bpm"])
+                        print("next song:", row["next_song_file"])
+                        print("terminated:", row["terminated"])
+                        print("truncated:", row["truncated"])
+                        print()

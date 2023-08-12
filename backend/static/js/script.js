@@ -102,6 +102,8 @@ function setElementHidden(elementId, value) {
 function startExperiment() {
     // Expose the video tag
     setElementHidden("videoSection", false);
+    // Expose the stop button
+    setElementHidden("stopButton", false);
     // Disable the next button
     setNextButtonDisabled(true);
     // Get a user id from server
@@ -145,6 +147,22 @@ function getAction(userId) {
         });
 }
 
+function requestStop(userId) {
+    // send request to stop the experiment
+    fetch('/stop?' + new URLSearchParams({
+        user_id: userId
+    }), {
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+        .then(response => response.text())
+        .then(data => {
+            console.log("Requested to stop experiment", data);
+        })
+        .catch(error => {
+            console.error(error);
+        });
+}
+
 function playNewSong(userId, songFileName) {
     document.getElementById("audioSource").src = songFileName;
     document.getElementById("music").load();
@@ -165,10 +183,14 @@ function startProcedure(userId) {
 }
 
 async function getUserId() {
+    let userIdResult = sessionStorage.getItem("userId")
+    if (userIdResult) return JSON.parse(userIdResult);
     const response = await fetch('/session', {
         headers: {'X-Requested-With': 'XMLHttpRequest'}
     })
-    return response.json();
+    userIdResult = await response.json();
+    sessionStorage.setItem("userId", JSON.stringify(userIdResult))
+    return userIdResult;
 }
 
 let currentPageIndex = 0;
@@ -196,8 +218,16 @@ document.getElementById("nextButton").addEventListener('click', function(event) 
     fetch_content(pageOrder[currentPageIndex], 'mainSection');
 });
 
+document.getElementById("stopButton").addEventListener('click', async function (event) {
+    setElementHidden("stopButton", true);
+    userId = await getUserId();
+    requestStop(userId);
+    document.getElementById("message").innerText = "The experiment is ending. Please wait a few seconds..."
+});
+
 // Start fetching first page
 setNextButtonDisabled(true);
+setElementHidden("stopButton", true);
 // Expose the video tag
 setElementHidden("videoSection", false);
 fetch_content(pageOrder[currentPageIndex], "mainSection");

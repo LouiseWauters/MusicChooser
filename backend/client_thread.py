@@ -8,6 +8,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.results_plotter import load_results, ts2xy
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 from music_env import MusicEnv
 
@@ -21,6 +22,7 @@ class ClientThread(threading.Thread):
         self.image_queue = image_queue
         self.action_queue = action_queue
         self.agent_queue = agent_queue
+        self.callback = None
 
     def run(self):
         # Create log dir
@@ -31,7 +33,7 @@ class ClientThread(threading.Thread):
         # TODO change songs per episode
         # Create and wrap the environment
         env = MusicEnv(image_queue=self.image_queue, song_queue=self.action_queue, song_duration_seconds=20,
-                       songs_per_episode=10)
+                       songs_per_episode=10, log_dir=log_dir)
         env = Monitor(env, log_dir)
 
         try:
@@ -42,19 +44,28 @@ class ClientThread(threading.Thread):
             # If there is no saved agent, make a new agent
             agent = PPO("MultiInputPolicy", env, verbose=1, n_steps=32, batch_size=16, tensorboard_log=log_dir)
 
-        # Create the callback: check every 10 steps
-        callback = SaveOnBestTrainingRewardCallback(check_freq=10, log_dir=log_dir, verbose=1)
+        # Create the callback: save every 33 steps
+        # (ranges anywhere between 0 and 11 minutes depending on agent's actions)
+        self.callback = CancellableCheckpointCallback(
+            save_freq=33,
+            save_path=log_dir,
+            name_prefix="backup",
+            save_vecnormalize=True,
+        )
 
         # Train the agent
-        timesteps = 64
-        agent.learn(total_timesteps=int(timesteps), callback=callback, reset_num_timesteps=False)
+        agent.learn(total_timesteps=1000000000, callback=self.callback, reset_num_timesteps=False)
 
         # Stop the experiment
-        env.close()  # Puts lasts "end" action in action queue (to stop the experiment client-side)
+        env.close()  # Puts lasts "end" action in action queue (to stop the experiment client-side) & saves experiences
 
         # Save the agent and put the file on the stack for future use
         agent.save(os.path.join(log_dir, "last_model"))
         self.agent_queue.put(os.path.join(log_dir, "last_model")+".zip")
+
+    def halt_learning(self):
+        if self.callback is not None:
+            self.callback.stop()
 
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
@@ -88,3 +99,27 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                     self.model.save(self.save_path)
                     # TODO this model could be on the queue as well?
         return True
+
+
+class CancellableCheckpointCallback(CheckpointCallback):
+    def __init__(self,
+                 save_freq: int,
+                 save_path: str,
+                 name_prefix: str = "rl_model",
+                 save_replay_buffer: bool = False,
+                 save_vecnormalize: bool = False,
+                 verbose: int = 0):
+        super().__init__(save_freq=save_freq, save_path=save_path, name_prefix=name_prefix,
+                         save_replay_buffer=save_replay_buffer, save_vecnormalize=save_vecnormalize, verbose=verbose)
+        self.stop_requested = False
+        self.counter = 0
+
+    def _on_step(self) -> bool:
+        self.counter += 1
+        print("on step", self.counter, self.stop_requested)
+        if self.stop_requested:
+            return False
+        return super()._on_step()
+
+    def stop(self):
+        self.stop_requested = True

@@ -3,14 +3,14 @@ from queue import Queue, LifoQueue
 from flask import Flask, render_template, request, redirect, make_response
 
 from client_thread import ClientThread
-from utils import decode_image, inner_content, error_handler, create_initial_agent_queue
+from utils import decode_image, inner_content, error_handler, create_initial_agent_queue, read_experience_logs
 
 app = Flask(__name__)
 
 image_queues = dict()
 action_queues = dict()
 agent_queue = LifoQueue()
-clients = []
+clients = dict()
 USER_ID_COUNTER = 0
 
 
@@ -73,10 +73,19 @@ def start():
     USER_ID_COUNTER += 1
     action_queues[new_id] = Queue()
     image_queues[new_id] = Queue()
-    clients.append(ClientThread(user_id=new_id, action_queue=action_queues[new_id], image_queue=image_queues[new_id],
-                                agent_queue=agent_queue))
-    clients[-1].start()
+    clients[new_id] = ClientThread(user_id=new_id, action_queue=action_queues[new_id], image_queue=image_queues[new_id],
+                                   agent_queue=agent_queue)
+    clients[new_id].start()
     return str(new_id)
+
+
+@app.route('/stop', methods=['GET'])
+@error_handler
+@inner_content
+def stop():
+    user_id = int(request.args['user_id'])
+    clients[user_id].halt_learning()
+    return ""
 
 
 @app.errorhandler(404)
@@ -87,4 +96,5 @@ def page_not_found(error):
 
 if __name__ == '__main__':
     create_initial_agent_queue(agent_queue)
+    # read_experience_logs()
     app.run()

@@ -1,4 +1,5 @@
 import math
+import os
 import time
 
 import gymnasium as gym
@@ -11,12 +12,13 @@ from song_bpm_utils import compute_features, SONG_DIRECTORY
 
 class MusicEnv(gym.Env):
     def __init__(self, image_queue, song_queue, max_song_bpm=300, max_heart_bpm=300, goal_heart_bpm=60, max_steps=1000,
-                 songs_per_episode=10, song_duration_seconds=20, sampling_rate=22050, hop_length=512):
+                 songs_per_episode=10, song_duration_seconds=20, sampling_rate=22050, hop_length=512, log_dir=None):
         self.song_queue = song_queue
         self.actions = [self.pick_yes, self.pick_no]
         self.action_space = gym.spaces.Discrete(len(self.actions))
         self.max_song_bpm = max_song_bpm
         self.max_heart_bpm = max_heart_bpm
+        self.log_dir = log_dir
         self.sr = sampling_rate  # sampling rate songs
         self.hop_length = hop_length  # hop length of the time series for chroma
         self.chroma_padding = 30
@@ -39,6 +41,12 @@ class MusicEnv(gym.Env):
         self.song_duration_seconds = song_duration_seconds
         self.images_to_bpm = ImageBPM(image_queue=image_queue)
         self.images_to_bpm.start()
+        self.experience_log = (f'#{{"max_song_bpm": {max_song_bpm}, "max_heart_bpm": {max_heart_bpm}'
+                               f', "goal_heart_bpm": {goal_heart_bpm}, "max_steps": {max_steps}'
+                               f', "songs_per_episode": {songs_per_episode}'
+                               f', "song_duration_seconds": {song_duration_seconds}, "sampling_rate": {sampling_rate}'
+                               f', "hop_length": {hop_length}}}\n')
+        self.experience_log += "heart_bpm,song_file,a,r,next_heart_bpm,next_song_file,terminated,truncated\n"
 
     def reset(self, seed=None, options=None):
         self.state = dict()
@@ -52,6 +60,7 @@ class MusicEnv(gym.Env):
 
     def step(self, action: int):
         previous_state = self.state.copy()
+        self.experience_log += f'{self.state["heart_bpm"]},"{self.next_song}",{action},'
 
         # Do selected action
         self.actions[action]()
@@ -62,10 +71,10 @@ class MusicEnv(gym.Env):
 
         terminated = False
 
-        if distance(self.goal, self.state['heart_bpm']) < 5:
-            reward = 0
-            # done = True
-            self.log += 'Goal rate reached.\n'
+        # if distance(self.goal, self.state['heart_bpm']) < 5:
+        #     reward = 0
+        #     # done = True
+        #     self.log += 'Goal rate reached.\n'
 
         if self.songs_left == 0:
             terminated = True
@@ -78,10 +87,12 @@ class MusicEnv(gym.Env):
         #     self.song_queue.put('end')
 
         self.log += self.state_representation(previous_state=previous_state)
+        self.experience_log += f'{reward},{self.state["heart_bpm"]},"{self.next_song}",{terminated},{truncated}\n'
         return self.state.copy(), reward, terminated, truncated, {}
 
     def close(self):
         self.song_queue.put('end')
+        self.save_experience_log()
 
     def render(self, mode=None):
         print(self.log)
@@ -132,6 +143,12 @@ class MusicEnv(gym.Env):
                     else '-'
             rep_str += '\n'
         return rep_str
+
+    def save_experience_log(self):
+        if self.log_dir is not None:
+            filename = os.path.join(self.log_dir, "experience_log.csv")
+            with open(filename, 'w') as file:
+                file.write(self.experience_log)
 
 
 def distance(x, y):
