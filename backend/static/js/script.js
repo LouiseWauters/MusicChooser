@@ -28,9 +28,13 @@ function fetch_content(url, elementId) {
 }
 
 function set_handlers(url) {
+    
     if (url === '/experiment') {
         // TODO put somewhere else ?
         startExperiment();
+    }
+    if (url === '/thanks') {
+        document.getElementById("message").innerText = ""
     }
     if (url === pageOrder[pageOrder.length - 1]) {
         setElementHidden("nextButton", true);
@@ -82,9 +86,6 @@ function sendImage(data, userId) {
         })
     })
         .then(response => response.text())
-        .then(data => {
-            console.log(data);
-        })
         .catch(error => {
             // Handle any errors that occur during the request
             console.error(error);
@@ -106,6 +107,8 @@ function startExperiment() {
     setElementHidden("stopButton", false);
     // Disable the next button
     setNextButtonDisabled(true);
+    // Give disclaimer
+    document.getElementById("message").innerText = "The experiment has begun. Please wait a few seconds for the music to start."
     // Get a user id from server
     getUserId()
         .then(getAction)
@@ -119,6 +122,8 @@ function endExperiment() {
     setElementHidden("videoSection", true);
     // Enable the next button
     setNextButtonDisabled(false);
+    // Remove any text
+    document.getElementById("message").innerText = ""
 }
 
 function getAction(userId) {
@@ -138,6 +143,7 @@ function getAction(userId) {
                 endExperiment()
             } else {
                 // console.log("received song:", data);
+                document.getElementById("message").innerText = ""
                 playNewSong(userId, data);
                 sendImages(userId, 1000/IMAGE_FPS, SONG_DURATION);
             }

@@ -97,4 +97,7 @@ def page_not_found(error):
 if __name__ == '__main__':
     create_initial_agent_queue(agent_queue)
     # read_experience_logs()
+    # app.run(host='0.0.0.0', port=5000)
     app.run()
+
+

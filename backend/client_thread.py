@@ -112,11 +112,8 @@ class CancellableCheckpointCallback(CheckpointCallback):
         super().__init__(save_freq=save_freq, save_path=save_path, name_prefix=name_prefix,
                          save_replay_buffer=save_replay_buffer, save_vecnormalize=save_vecnormalize, verbose=verbose)
         self.stop_requested = False
-        self.counter = 0
 
     def _on_step(self) -> bool:
-        self.counter += 1
-        print("on step", self.counter, self.stop_requested)
         if self.stop_requested:
             return False
         return super()._on_step()
