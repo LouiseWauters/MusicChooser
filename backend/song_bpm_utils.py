@@ -53,23 +53,3 @@ def compute_all_bpm():
         if get_bpm(song_file_name) is None:
             song_bpm = compute_bpm_from_file(song_file_name)
             set_bpm(song_file_name, song_bpm)
-
-# TODO make thread to analyze songs, so that there is no waiting time for chroma feature extraction
-# class MusicAnalyzer(threading.Thread):
-#     def __init__(self, songs):
-#         super().__init__(daemon=True)
-#         self.processed_songs = []
-#         self.lock = threading.Lock()
-#         self.songs = songs
-#
-#     def run(self):
-#         for song in self.songs:
-#             song_bpm = self.get_bpm(song)
-#             with self.lock:
-#                 self.processed_songs.append((song, song_bpm))
-#
-#     def get_songs(self):
-#         with self.lock:
-#             processed_songs = self.processed_songs
-#             self.processed_songs = []
-#             return processed_songs

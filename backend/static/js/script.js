@@ -30,7 +30,6 @@ function fetch_content(url, elementId) {
 function set_handlers(url) {
     
     if (url === '/experiment') {
-        // TODO put somewhere else ?
         startExperiment();
     }
     if (url === '/thanks') {
@@ -180,10 +179,6 @@ function playNewSong(userId, songFileName) {
 }
 
 function startProcedure(userId) {
-    // TODO take a few seconds to get used to the camera
-    // TODO at every begin of episode, this is called, but server is not waiting,
-    // so images are being sent twice (here and normal action loop)
-
     // Send enough images to fill buffer
     return sendImages(userId,1000/IMAGE_FPS, Math.max(BUFFER_SIZE/IMAGE_FPS, 20));
 }
@@ -211,7 +206,6 @@ init();
 // Draw image
 const context = canvas.getContext('2d');
 
-// TODO give this as info from server, along with user id
 const SONG_DURATION = 20;
 const IMAGE_FPS = 10;
 const BUFFER_SIZE = 150;
@@ -237,11 +231,4 @@ setElementHidden("stopButton", true);
 // Expose the video tag
 setElementHidden("videoSection", false);
 fetch_content(pageOrder[currentPageIndex], "mainSection");
-
-// console.log("starting")
-// const userId = getUserId();
-// setElementHidden("videoSection", false);
-// userId.then(
-//     data => sendImages(data, 100, 120)
-// )
 

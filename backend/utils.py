@@ -1,4 +1,3 @@
-import csv
 import os
 import urllib.request
 from functools import wraps
@@ -52,34 +51,3 @@ def error_handler(f):
             return make_response('Something went wrong.', 400)
 
     return decorated
-
-
-# TODO Can be removed, for testing purposes only
-def show_images(queue):
-    print(f'#images = {queue.qsize()}')
-    while not queue.empty():
-        image = queue.get()
-        cv2.imshow('image', image)
-        cv2.waitKey(100)
-
-
-# TODO Can be removed, for testing purposes only
-def read_experience_logs():
-    tmp_dirs = os.listdir('static/logs')
-    tmp_dirs.sort()  # Put the most recent models last in the queue (so they are first used)
-    for directory in tmp_dirs:
-        files = os.listdir(f'static/logs/{directory}')
-        for file in files:
-            if "experience_log" in file:
-                with open(f'static/logs/{directory}/{file}', "r") as csv_file:
-                    csv_reader = csv.DictReader(filter(lambda x: not x.startswith("#"), csv_file))
-                    for row in csv_reader:
-                        print("heart:", row["heart_bpm"])
-                        print("song:", row["song_file"])
-                        print("action:", row["a"])
-                        print("reward:", row["r"])
-                        print("next heart:", row["next_heart_bpm"])
-                        print("next song:", row["next_song_file"])
-                        print("terminated:", row["terminated"])
-                        print("truncated:", row["truncated"])
-                        print()

@@ -50,7 +50,7 @@ class MusicEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         self.state = dict()
-        self.songs_left = self.song_duration_seconds + 1  # default start step takes 1 off
+        self.songs_left = self.songs_per_episode + 1  # default start step takes 1 off
         self.next_song = 'start'  # starting action
         self.pick_yes()
         self.steps_left = self.max_steps
@@ -66,26 +66,25 @@ class MusicEnv(gym.Env):
         self.actions[action]()
 
         # Calculate reward
-        reward = - distance(self.goal, self.state["heart_bpm"])
-        self.log += f'Reward: {reward}\n'
+        reward = distance(previous_state["heart_bpm"], self.goal) - distance(self.state["heart_bpm"], self.goal)
 
         terminated = False
-
-        # if distance(self.goal, self.state['heart_bpm']) < 5:
-        #     reward = 0
-        #     # done = True
-        #     self.log += 'Goal rate reached.\n'
 
         if self.songs_left == 0:
             terminated = True
             self.log += 'End of episode.\n'
+            reward = 100 - distance(self.state["heart_bpm"], self.goal)
 
         self.steps_left -= 1
         truncated = self.steps_left <= 0
 
+        if truncated:
+            reward = -1000
+
         # if terminated or truncated:
         #     self.song_queue.put('end')
 
+        self.log += f'Reward: {reward}\n'
         self.log += self.state_representation(previous_state=previous_state)
         self.experience_log += f'{reward},{self.state["heart_bpm"]},"{self.next_song}",{terminated},{truncated}\n'
         return self.state.copy(), reward, terminated, truncated, {}
@@ -102,11 +101,10 @@ class MusicEnv(gym.Env):
         self.songs_left -= 1
         # Only put the directory before the action if it is a file name
         self.song_queue.put(f'{SONG_DIRECTORY}/{self.next_song}' if "." in self.next_song else self.next_song)
-        # sleep so images can come in
-        time.sleep(self.song_duration_seconds)  # TODO set new song during sleep time to not lose time
+        # Sleep so images can come in
+        time.sleep(self.song_duration_seconds)
 
-        # get new heart bpm
-        # timeout = 120  # TODO avoid hang with timeout
+        # Get new heart bpm
         counter = 0
         while self.images_to_bpm.getBPM() == 60.0:  # Buffer isn't full yet
             time.sleep(0.1)
@@ -114,8 +112,7 @@ class MusicEnv(gym.Env):
             if counter % 100 == 0:
                 print("Waiting for more images.")
         new_bpm = self.images_to_bpm.getBPM()
-        # self.state["heart_bpm"] = min(np.random.normal(80, 10, 10)[0], 300)  # TODO sub for image reading
-        self.state["heart_bpm"] = new_bpm
+        self.state["heart_bpm"] = int(new_bpm)
         self.set_next_song()
 
     def pick_no(self):
@@ -124,7 +121,7 @@ class MusicEnv(gym.Env):
     def set_next_song(self):
         self.next_song = self.music_library.get_random_song()
         features = compute_features(self.next_song, duration_seconds=self.song_duration_seconds)
-        self.state['song_bpm'] = features['bpm']
+        self.state['song_bpm'] = int(features['bpm'])
         chroma_stft = np.round(features['chroma_stft'] * 255).astype(np.uint8)
         # zero padding at top and bottom
         padding = int(self.chroma_padding / 2)

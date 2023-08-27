@@ -60,14 +60,12 @@ def process_image():
 def get_action():
     user_id = int(request.args['user_id'])
     next_action = action_queues[user_id].get()
-    # TODO return json with song information as well as file name (for credits)
     return next_action
 
 
 @app.route('/session')
 @error_handler
 def start():
-    # TODO any issues with concurrency?
     global USER_ID_COUNTER
     new_id = USER_ID_COUNTER
     USER_ID_COUNTER += 1
@@ -96,7 +94,6 @@ def page_not_found(error):
 
 if __name__ == '__main__':
     create_initial_agent_queue(agent_queue)
-    # read_experience_logs()
     # app.run(host='0.0.0.0', port=5000)
     app.run()
 

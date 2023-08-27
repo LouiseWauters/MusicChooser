@@ -29,8 +29,6 @@ class ClientThread(threading.Thread):
         log_dir = f'{LOG_DIR}/log{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}/'
         os.makedirs(log_dir, exist_ok=True)
 
-        # TODO remove seconds, add some config constant
-        # TODO change songs per episode
         # Create and wrap the environment
         env = MusicEnv(image_queue=self.image_queue, song_queue=self.action_queue, song_duration_seconds=20,
                        songs_per_episode=10, log_dir=log_dir)
@@ -97,7 +95,6 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                 if mean_reward > self.best_mean_reward:
                     self.best_mean_reward = mean_reward
                     self.model.save(self.save_path)
-                    # TODO this model could be on the queue as well?
         return True
 
 

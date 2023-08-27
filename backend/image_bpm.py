@@ -64,10 +64,3 @@ class ImageBPM(threading.Thread):
 
         return pyramid
 
-
-if __name__ == '__main__':
-    t = ImageBPM()
-    t.start()
-
-    import time
-    time.sleep(50.0)
